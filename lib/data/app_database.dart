@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
-import '../core/database/schema.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sembast/sembast.dart';
+import 'package:sembast/sembast_io.dart';
+import 'package:sembast_web/sembast_web.dart';
 
 class AppDatabase {
   AppDatabase._();
@@ -13,26 +16,12 @@ class AppDatabase {
   }
 
   static Future<Database> _open() async {
-    final path = join(await getDatabasesPath(), kDbName);
-    return openDatabase(
-      path,
-      version: kDbVersion,
-      onCreate: (db, _) async {
-        for (final sql in allCreateStatements) {
-          await db.execute(sql);
-        }
-      },
-    );
-  }
-
-  /// 테스트·초기화용 — 모든 테이블 삭제 후 재생성
-  static Future<void> reset() async {
-    final db = await instance;
-    for (final sql in allDropStatements) {
-      await db.execute(sql);
-    }
-    for (final sql in allCreateStatements) {
-      await db.execute(sql);
+    if (kIsWeb) {
+      return databaseFactoryWeb.openDatabase('prj_dim.db');
+    } else {
+      final dir = await getApplicationDocumentsDirectory();
+      final path = join(dir.path, 'prj_dim.db');
+      return databaseFactoryIo.openDatabase(path);
     }
   }
 }

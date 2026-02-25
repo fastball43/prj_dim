@@ -1,7 +1,7 @@
 /// 인지 테스트 세션 DAO
 library cognitive_dao;
 
-import 'package:sqflite/sqflite.dart';
+import 'package:sembast/sembast.dart';
 
 /// 인지 테스트 세션 모델.
 class CognitiveSession {
@@ -40,7 +40,6 @@ class CognitiveSession {
   });
 
   Map<String, dynamic> toMap() => {
-        if (id != null) 'id': id,
         'tested_at': testedAt.toIso8601String(),
         't1_immediate': t1Immediate,
         't1_delayed': t1Delayed,
@@ -63,16 +62,16 @@ class CognitiveSession {
         testedAt: DateTime.parse(map['tested_at'] as String),
         t1Immediate: map['t1_immediate'] as int?,
         t1Delayed: map['t1_delayed'] as int?,
-        t1Score: map['t1_score'] as double?,
+        t1Score: (map['t1_score'] as num?)?.toDouble(),
         t2WordCount: map['t2_word_count'] as int?,
-        t2Score: map['t2_score'] as double?,
+        t2Score: (map['t2_score'] as num?)?.toDouble(),
         t3ForwardSpan: map['t3_forward_span'] as int?,
         t3BackwardSpan: map['t3_backward_span'] as int?,
-        t3Score: map['t3_score'] as double?,
-        t4TimeA: map['t4_time_a'] as double?,
-        t4TimeB: map['t4_time_b'] as double?,
-        t4Score: map['t4_score'] as double?,
-        compositeScore: map['composite_score'] as double?,
+        t3Score: (map['t3_score'] as num?)?.toDouble(),
+        t4TimeA: (map['t4_time_a'] as num?)?.toDouble(),
+        t4TimeB: (map['t4_time_b'] as num?)?.toDouble(),
+        t4Score: (map['t4_score'] as num?)?.toDouble(),
+        compositeScore: (map['composite_score'] as num?)?.toDouble(),
         wordSet: map['word_set'] as String? ?? 'A',
       );
 }
@@ -90,7 +89,6 @@ class CognitiveBaseline {
   });
 
   Map<String, dynamic> toMap() => {
-        'id': 1,
         'baseline_composite': baselineComposite,
         'baseline_calculated_at': calculatedAt?.toIso8601String(),
         'session_count_used': sessionCountUsed,
@@ -98,7 +96,8 @@ class CognitiveBaseline {
 
   factory CognitiveBaseline.fromMap(Map<String, dynamic> map) =>
       CognitiveBaseline(
-        baselineComposite: map['baseline_composite'] as double?,
+        baselineComposite:
+            (map['baseline_composite'] as num?)?.toDouble(),
         calculatedAt: map['baseline_calculated_at'] != null
             ? DateTime.parse(map['baseline_calculated_at'] as String)
             : null,
@@ -108,6 +107,12 @@ class CognitiveBaseline {
 
 /// 인지 테스트 세션 데이터 접근 객체.
 class CognitiveDao {
+  static final _sessionStore =
+      intMapStoreFactory.store('cognitive_sessions');
+  static final _baselineStore =
+      intMapStoreFactory.store('cognitive_baseline');
+  static const _baselineKey = 1;
+
   final Database db;
 
   const CognitiveDao(this.db);
@@ -116,25 +121,34 @@ class CognitiveDao {
 
   /// 새 테스트 세션 삽입.
   Future<int> insertSession(CognitiveSession session) async {
-    return db.insert('cognitive_sessions', session.toMap());
+    return _sessionStore.add(db, session.toMap().cast<String, Object?>());
   }
 
   /// 전체 세션 조회 (시간순 오름차순).
   Future<List<CognitiveSession>> getAllSessions() async {
-    final rows =
-        await db.query('cognitive_sessions', orderBy: 'tested_at ASC');
-    return rows.map(CognitiveSession.fromMap).toList();
+    final records = await _sessionStore.find(
+      db,
+      finder: Finder(sortOrders: [SortOrder('tested_at')]),
+    );
+    return records
+        .map((r) => CognitiveSession.fromMap(
+            {...Map<String, dynamic>.from(r.value), 'id': r.key}))
+        .toList();
   }
 
-  /// 최근 N개 세션 조회 (최신순).
+  /// 최근 N개 세션 조회 (시간순 오름차순 반환).
   Future<List<CognitiveSession>> getRecentSessions(int n) async {
-    final rows = await db.query(
-      'cognitive_sessions',
-      orderBy: 'tested_at DESC',
-      limit: n,
+    final records = await _sessionStore.find(
+      db,
+      finder: Finder(
+        sortOrders: [SortOrder('tested_at', false)],
+        limit: n,
+      ),
     );
-    // 시간순 오름차순으로 반환
-    return rows.reversed.map(CognitiveSession.fromMap).toList();
+    return records.reversed
+        .map((r) => CognitiveSession.fromMap(
+            {...Map<String, dynamic>.from(r.value), 'id': r.key}))
+        .toList();
   }
 
   /// 가장 최근 세션 1개 조회.
@@ -145,42 +159,38 @@ class CognitiveDao {
 
   /// 세션 총 개수 조회.
   Future<int> sessionCount() async {
-    final result =
-        await db.rawQuery('SELECT COUNT(*) as cnt FROM cognitive_sessions');
-    return result.first['cnt'] as int;
+    return _sessionStore.count(db);
   }
 
   // ---- Baseline CRUD ----
 
-  /// baseline 저장 또는 갱신 (id=1 고정 행).
+  /// baseline 저장 또는 갱신.
   Future<void> upsertBaseline(CognitiveBaseline baseline) async {
-    await db.insert(
-      'cognitive_baseline',
-      baseline.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _baselineStore
+        .record(_baselineKey)
+        .put(db, baseline.toMap().cast<String, Object?>());
   }
 
   /// 저장된 baseline 조회. 없으면 null 반환.
   Future<CognitiveBaseline?> getBaseline() async {
-    final rows =
-        await db.query('cognitive_baseline', where: 'id = 1');
-    if (rows.isEmpty) return null;
-    return CognitiveBaseline.fromMap(rows.first);
+    final record = await _baselineStore.record(_baselineKey).get(db);
+    if (record == null) return null;
+    return CognitiveBaseline.fromMap(Map<String, dynamic>.from(record));
   }
 
   // ---- Composite score 시계열 ----
 
   /// composite_score 시계열 조회 (null 제외, 시간순).
   Future<List<double>> getCompositeScoreTimeSeries() async {
-    final rows = await db.query(
-      'cognitive_sessions',
-      columns: ['composite_score'],
-      where: 'composite_score IS NOT NULL',
-      orderBy: 'tested_at ASC',
+    final records = await _sessionStore.find(
+      db,
+      finder: Finder(
+        filter: Filter.notNull('composite_score'),
+        sortOrders: [SortOrder('tested_at')],
+      ),
     );
-    return rows
-        .map((r) => r['composite_score'] as double)
+    return records
+        .map((r) => (r.value['composite_score'] as num).toDouble())
         .toList();
   }
 }

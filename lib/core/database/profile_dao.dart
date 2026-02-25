@@ -1,7 +1,7 @@
 /// 사용자 프로파일 DAO
 library profile_dao;
 
-import 'package:sqflite/sqflite.dart';
+import 'package:sembast/sembast.dart';
 
 /// 사용자 프로파일 모델.
 class UserProfile {
@@ -24,7 +24,6 @@ class UserProfile {
   int get age => DateTime.now().year - birthYear;
 
   Map<String, dynamic> toMap() => {
-        'id': 1,
         'birth_year': birthYear,
         'education_years': educationYears,
         'family_history': familyHistory ? 1 : 0,
@@ -45,28 +44,27 @@ class UserProfile {
 
 /// 사용자 프로파일 데이터 접근 객체.
 class ProfileDao {
+  static final _store = intMapStoreFactory.store('user_profile');
+  static const _key = 1;
+
   final Database db;
 
   const ProfileDao(this.db);
 
-  /// 프로파일 저장 또는 갱신 (id=1 고정 행).
+  /// 프로파일 저장 또는 갱신.
   Future<void> upsert(UserProfile profile) async {
-    await db.insert(
-      'user_profile',
-      profile.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _store.record(_key).put(db, profile.toMap().cast<String, Object?>());
   }
 
   /// 저장된 프로파일 조회. 없으면 null 반환.
   Future<UserProfile?> get() async {
-    final rows = await db.query('user_profile', where: 'id = 1');
-    if (rows.isEmpty) return null;
-    return UserProfile.fromMap(rows.first);
+    final record = await _store.record(_key).get(db);
+    if (record == null) return null;
+    return UserProfile.fromMap(Map<String, dynamic>.from(record));
   }
 
   /// 프로파일 삭제 (재온보딩용).
   Future<void> delete() async {
-    await db.delete('user_profile', where: 'id = 1');
+    await _store.record(_key).delete(db);
   }
 }

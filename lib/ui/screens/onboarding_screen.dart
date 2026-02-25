@@ -21,7 +21,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _familyHistory = false;
   bool _hasDiabetes = false;
 
+  bool _saving = false;
+
   bool get _canNext {
+    if (_saving) return false;
     if (_currentPage == 0) {
       final y = int.tryParse(_birthYearController.text);
       return y != null && y >= 1930 && y <= 2010;
@@ -36,33 +39,42 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  void _next() {
+  Future<void> _next() async {
     if (_currentPage < 3) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     } else {
-      _save();
+      await _save();
     }
   }
 
   Future<void> _save() async {
-    final birthYear = int.parse(_birthYearController.text);
-    final now = DateTime.now();
-    final profile = UserProfile(
-      birthYear: birthYear,
-      educationYears: _educationYears,
-      familyHistory: _familyHistory,
-      hasDiabetes: _hasDiabetes,
-      createdAt: now,
-      updatedAt: now,
-    );
-    await ProfileService.saveProfile(profile);
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DashboardScreen()),
-    );
+    setState(() => _saving = true);
+    try {
+      final birthYear = int.parse(_birthYearController.text);
+      final now = DateTime.now();
+      final profile = UserProfile(
+        birthYear: birthYear,
+        educationYears: _educationYears,
+        familyHistory: _familyHistory,
+        hasDiabetes: _hasDiabetes,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await ProfileService.saveProfile(profile);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('저장 실패: $e')),
+      );
+    }
   }
 
   @override
@@ -216,6 +228,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       canNext: true,
       onNext: _next,
       nextLabel: '시작하기',
+      loading: _saving,
     );
   }
 }
@@ -230,6 +243,7 @@ class _StepShell extends StatelessWidget {
   final bool canNext;
   final VoidCallback onNext;
   final String nextLabel;
+  final bool loading;
 
   const _StepShell({
     required this.step,
@@ -239,6 +253,7 @@ class _StepShell extends StatelessWidget {
     required this.canNext,
     required this.onNext,
     this.nextLabel = '다음',
+    this.loading = false,
   });
 
   @override
@@ -259,8 +274,15 @@ class _StepShell extends StatelessWidget {
           child,
           const Spacer(),
           ElevatedButton(
-            onPressed: canNext ? onNext : null,
-            child: Text(nextLabel),
+            onPressed: canNext && !loading ? onNext : null,
+            child: loading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : Text(nextLabel),
           ),
         ],
       ),
