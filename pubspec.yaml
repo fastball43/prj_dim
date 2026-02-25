@@ -1,0 +1,12 @@
+name: prj_dim
+description: 치매 예방 자가 관리 앱 - 인지 테스트 & 라이프스타일 점수 알고리즘
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies: {}
+
+dev_dependencies:
+  test: ^1.24.0

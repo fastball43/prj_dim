@@ -1,0 +1,172 @@
+/// 인지 점수 변화 감지 및 기준선(baseline) 관리
+///
+/// - 처음 2회 평균을 baseline으로 설정
+/// - 종합 점수가 baseline 대비 -15점 이상 하락 시 경고
+/// - 2회 연속 하락 확인 후 알림 (단 1회 하락은 경고 안 함)
+/// - 3개월 이상 공백 후 새 baseline 재계산 권유
+library change_detection;
+
+/// 기준선 계산에 필요한 최소 세션 수.
+const int kBaselineSessionCount = 2;
+
+/// 기준선 대비 경고 임계값 (하락 점수).
+const double kAlertThreshold = 15.0;
+
+/// baseline 재계산 권유 기준 (일수).
+const int kGapDaysForReset = 90;
+
+// ---------------------------------------------------------------------------
+// Baseline 계산
+// ---------------------------------------------------------------------------
+
+/// 첫 N개 세션으로 baseline 계산.
+///
+/// [scores]: 시간순 정렬된 종합 인지 점수 리스트
+/// [n]: 기준선 계산에 사용할 세션 수 (기본 2)
+/// Returns: baseline 점수. 세션이 부족하면 null.
+double? computeBaseline(List<double> scores, {int n = kBaselineSessionCount}) {
+  if (scores.length < n) return null;
+  final subset = scores.take(n);
+  return subset.reduce((a, b) => a + b) / n;
+}
+
+// ---------------------------------------------------------------------------
+// 변화 감지
+// ---------------------------------------------------------------------------
+
+/// 단일 점수가 baseline 대비 임계값 이상 하락했는지 확인.
+///
+/// [score]: 검사할 점수
+/// [baseline]: 기준선 점수
+/// [threshold]: 하락 임계값 (기본 15점)
+bool isSignificantDecline(
+  double score,
+  double baseline, {
+  double threshold = kAlertThreshold,
+}) {
+  return (baseline - score) >= threshold;
+}
+
+/// 최근 [windowSize]개 세션에서 연속 하락 횟수를 계산.
+///
+/// [recentScores]: 시간순 정렬된 최근 점수 리스트 (최신 포함)
+/// Returns: 연속 하락 횟수 (현재 점수 기준 뒤로 셈)
+int consecutiveDeclineCount(List<double> recentScores) {
+  if (recentScores.length < 2) return 0;
+  int count = 0;
+  for (int i = recentScores.length - 1; i > 0; i--) {
+    if (recentScores[i] < recentScores[i - 1]) {
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+}
+
+/// 경고 신호 발생 여부 판단.
+///
+/// 조건:
+/// 1. 현재 점수가 baseline 대비 [kAlertThreshold] 이상 하락
+/// 2. 최근 2회 연속 하락 (노이즈 필터)
+///
+/// [allScores]: 시간순 정렬된 전체 세션 점수 (baseline 계산 포함)
+/// [baseline]: 미리 계산된 baseline (없으면 null → 경고 없음)
+/// Returns: 경고 발생 여부
+bool shouldAlert({
+  required List<double> allScores,
+  required double? baseline,
+}) {
+  if (baseline == null || allScores.length < kBaselineSessionCount + 1) {
+    return false;
+  }
+
+  final latestScore = allScores.last;
+
+  // 조건 1: 기준선 대비 유의미한 하락
+  if (!isSignificantDecline(latestScore, baseline)) return false;
+
+  // 조건 2: 2회 연속 하락
+  return consecutiveDeclineCount(allScores) >= 2;
+}
+
+// ---------------------------------------------------------------------------
+// 공백 감지 (3개월 이상)
+// ---------------------------------------------------------------------------
+
+/// 마지막 세션 이후 공백이 [kGapDaysForReset]일 이상인지 확인.
+///
+/// [lastSessionDate]: 마지막 세션 날짜
+/// [now]: 현재 날짜 (테스트 주입용, 기본값 DateTime.now())
+/// Returns: 재계산 권유 여부
+bool shouldRecommendBaselineReset({
+  required DateTime lastSessionDate,
+  DateTime? now,
+}) {
+  final reference = now ?? DateTime.now();
+  final gap = reference.difference(lastSessionDate).inDays;
+  return gap >= kGapDaysForReset;
+}
+
+// ---------------------------------------------------------------------------
+// ChangeDetectionResult — 최종 판정 결과
+// ---------------------------------------------------------------------------
+
+/// 변화 감지 판정 결과.
+class ChangeDetectionResult {
+  /// 현재 사용 중인 baseline 점수.
+  final double? baseline;
+
+  /// 최신 세션 점수.
+  final double? latestScore;
+
+  /// baseline 대비 변화량 (양수 = 개선, 음수 = 하락).
+  final double? delta;
+
+  /// 경고 신호 발생 여부.
+  final bool alert;
+
+  /// baseline 재계산 권유 여부.
+  final bool recommendReset;
+
+  const ChangeDetectionResult({
+    this.baseline,
+    this.latestScore,
+    this.delta,
+    required this.alert,
+    required this.recommendReset,
+  });
+
+  @override
+  String toString() => 'ChangeDetectionResult('
+      'baseline=$baseline, latest=$latestScore, '
+      'delta=$delta, alert=$alert, reset=$recommendReset)';
+}
+
+/// 전체 변화 감지 판정을 수행.
+///
+/// [allScores]: 시간순 정렬된 전체 세션 점수
+/// [lastSessionDate]: 마지막 세션 날짜 (공백 계산용)
+/// [now]: 현재 날짜 (테스트 주입용)
+/// Returns: [ChangeDetectionResult]
+ChangeDetectionResult evaluateChange({
+  required List<double> allScores,
+  required DateTime lastSessionDate,
+  DateTime? now,
+}) {
+  final baseline = computeBaseline(allScores);
+  final latest = allScores.isNotEmpty ? allScores.last : null;
+  final delta = (baseline != null && latest != null) ? latest - baseline : null;
+
+  final alert = shouldAlert(allScores: allScores, baseline: baseline);
+  final reset = shouldRecommendBaselineReset(
+      lastSessionDate: lastSessionDate, now: now);
+
+  return ChangeDetectionResult(
+    baseline: baseline,
+    latestScore: latest,
+    delta: delta,
+    alert: alert,
+    recommendReset: reset,
+  );
+}
