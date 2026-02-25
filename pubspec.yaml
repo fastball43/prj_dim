@@ -1,12 +1,20 @@
 name: prj_dim
 description: 치매 예방 자가 관리 앱 - 인지 테스트 & 라이프스타일 점수 알고리즘
-version: 0.1.0
+version: 1.0.0+1
 publish_to: none
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
 
-dependencies: {}
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.0
+  path: ^1.9.0
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   test: ^1.24.0
+  flutter_lints: ^3.0.0
