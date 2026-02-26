@@ -136,20 +136,11 @@ class _T4TrailCanvasState extends State<T4TrailCanvas> {
     return List.generate(widget.labels.length, (i) {
       final pos = _positions[i];
       final tapped = _tapped[i];
-      final isNext = i == _nextIndex;
 
-      final bgColor = tapped
-          ? Colors.green.shade200
-          : isNext
-              ? primary
-              : Colors.white;
-      final borderColor = tapped
-          ? Colors.green.shade600
-          : isNext
-              ? primary
-              : Colors.grey.shade400;
-      final textColor = (tapped || isNext) ? Colors.white : Colors.black87;
-      if (tapped) {}
+      final bgColor = tapped ? Colors.green.shade200 : Colors.white;
+      final borderColor =
+          tapped ? Colors.green.shade600 : Colors.grey.shade400;
+      final textColor = tapped ? Colors.white : Colors.black87;
 
       return Positioned(
         left: pos.dx - r,
