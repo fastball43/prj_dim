@@ -211,6 +211,40 @@ void main() {
   });
 
   // =========================================================================
+  // baselinePeriodStartIndex
+  // =========================================================================
+  group('baselinePeriodStartIndex', () {
+    final d0 = DateTime(2026, 1, 1);
+    DateTime day(int n) => d0.add(Duration(days: n));
+
+    test('공백 없음 → 0', () {
+      expect(baselinePeriodStartIndex([day(0), day(30), day(60), day(90)]),
+          equals(0));
+    });
+
+    test('90일 공백 뒤 세션부터 새 기간', () {
+      expect(baselinePeriodStartIndex([day(0), day(30), day(120), day(150)]),
+          equals(2));
+    });
+
+    test('89일 공백은 재설정 안 함', () {
+      expect(baselinePeriodStartIndex([day(0), day(30), day(119)]), equals(0));
+    });
+
+    test('공백이 여러 번이면 마지막 공백 이후', () {
+      expect(
+          baselinePeriodStartIndex(
+              [day(0), day(100), day(130), day(300), day(330)]),
+          equals(3));
+    });
+
+    test('빈 리스트·세션 1개 → 0', () {
+      expect(baselinePeriodStartIndex([]), equals(0));
+      expect(baselinePeriodStartIndex([day(0)]), equals(0));
+    });
+  });
+
+  // =========================================================================
   // evaluateChange (통합)
   // =========================================================================
   group('evaluateChange', () {
@@ -250,6 +284,58 @@ void main() {
         now: now,
       );
       expect(result.recommendReset, isTrue);
+    });
+
+    test('90일 공백 뒤 새 기준선으로 판정', () {
+      // 이전 기간 [90, 90], 공백 뒤 [60, 62, 64]
+      // → 새 baseline = (60+62)/2 = 61, 이전 기준선(90) 대비 하락 경고 없음
+      final d0 = DateTime(2026, 1, 1);
+      final dates = [0, 30, 150, 180, 210]
+          .map((n) => d0.add(Duration(days: n)))
+          .toList();
+      final result = evaluateChange(
+        allScores: [90.0, 90.0, 60.0, 62.0, 64.0],
+        sessionDates: dates,
+        lastSessionDate: dates.last,
+        now: dates.last,
+      );
+      expect(result.baselinePeriodStart, equals(2));
+      expect(result.sessionsInPeriod, equals(3));
+      expect(result.baseline, closeTo(61.0, 0.01));
+      expect(result.delta, closeTo(3.0, 0.01));
+      expect(result.alert, isFalse);
+      expect(result.recommendReset, isFalse);
+    });
+
+    test('공백 뒤 첫 세션만 있으면 baseline null (재측정 중)', () {
+      final d0 = DateTime(2026, 1, 1);
+      final dates = [d0, d0.add(const Duration(days: 30)),
+          d0.add(const Duration(days: 150))];
+      final result = evaluateChange(
+        allScores: [90.0, 90.0, 60.0],
+        sessionDates: dates,
+        lastSessionDate: dates.last,
+        now: dates.last,
+      );
+      expect(result.baseline, isNull);
+      expect(result.delta, isNull);
+      expect(result.alert, isFalse);
+      expect(result.sessionsInPeriod, equals(1));
+    });
+
+    test('새 기간 안에서도 하락 경고 동작', () {
+      final d0 = DateTime(2026, 1, 1);
+      final dates = [0, 30, 150, 180, 210, 240]
+          .map((n) => d0.add(Duration(days: n)))
+          .toList();
+      final result = evaluateChange(
+        allScores: [90.0, 90.0, 70.0, 70.0, 50.0, 50.0],
+        sessionDates: dates,
+        lastSessionDate: dates.last,
+        now: dates.last,
+      );
+      expect(result.baseline, closeTo(70.0, 0.01));
+      expect(result.alert, isTrue);
     });
 
     test('세션 없음 → baseline null, 경고 없음', () {

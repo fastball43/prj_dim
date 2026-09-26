@@ -68,6 +68,7 @@ lib/
     algorithms/
       cognitive_scoring.dart   # T1~T4 점수 계산, 종합 인지 점수
       animal_lexicon.dart      # T2 동물 이름 사전·입력 검증
+      trail_layout.dart        # T4 버블 배치 (격자 기반)
       lifestyle_scoring.dart   # 8개 항목 점수 + 가중합 + 통합 점수
       change_detection.dart    # 기준선 계산, 변화 감지, 공백 탐지
     database/
@@ -78,6 +79,7 @@ lib/
 test/
   cognitive_scoring_test.dart
   animal_lexicon_test.dart
+  trail_layout_test.dart
   lifestyle_scoring_test.dart
   change_detection_test.dart
 ```
@@ -103,7 +105,7 @@ brew install dart-sdk
 
 ```bash
 dart pub get
-dart test test/cognitive_scoring_test.dart test/animal_lexicon_test.dart test/lifestyle_scoring_test.dart test/change_detection_test.dart
+dart test test/cognitive_scoring_test.dart test/animal_lexicon_test.dart test/trail_layout_test.dart test/lifestyle_scoring_test.dart test/change_detection_test.dart
 ```
 
 또는 Flutter 설치 후:
@@ -115,7 +117,7 @@ flutter test
 ### 실행 결과
 
 ```
-166 tests passed in 0.1s
+180 tests passed in 0.1s
 ```
 
 ---
@@ -135,6 +137,7 @@ flutter test
 - T1 회상: 보기 중 선택 방식이므로 오답 선택 1개당 1점 감점 (정답 수 − 오답 수)
 - T2 유창성: 동물 이름 사전으로 검증, 같은 동물은 한 번만 인정
 - 경고 조건: 기준선 이후 최근 2회 세션이 모두 기준선 대비 15점 이상 낮을 때
+- 90일 이상 공백: 공백 뒤 첫 세션부터 새 기준선 기간 시작 (새로 2회 측정 후 판정 재개)
 
 ### 라이프스타일 위험도 점수 (주 1~2회)
 

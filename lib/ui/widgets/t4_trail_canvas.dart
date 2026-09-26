@@ -1,5 +1,6 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
+
+import '../../core/algorithms/trail_layout.dart';
 
 /// Trail Making Test 캔버스 위젯.
 ///
@@ -20,11 +21,11 @@ class T4TrailCanvas extends StatefulWidget {
 }
 
 class _T4TrailCanvasState extends State<T4TrailCanvas> {
-  late List<Offset> _positions; // 정규화 좌표 (0-1)
+  List<Offset>? _normalized; // 정규화 좌표 (0-1). 화면 크기가 바뀌어도 비율 유지
+  double _radius = kTrailBubbleRadius;
   late List<bool> _tapped;
   int _nextIndex = 0;
   DateTime? _startTime;
-  bool _ready = false;
 
   @override
   void initState() {
@@ -32,30 +33,22 @@ class _T4TrailCanvasState extends State<T4TrailCanvas> {
     _tapped = List.filled(widget.labels.length, false);
   }
 
-  void _generatePositions(Size size) {
-    if (_ready) return;
-    _positions = _generateNonOverlapping(widget.labels.length, size);
-    _ready = true;
-  }
-
-  static List<Offset> _generateNonOverlapping(int count, Size canvasSize) {
-    final rand = Random();
-    const bubbleRadius = 28.0;
-    const minDist = 70.0;
-    const margin = bubbleRadius + 8;
-
-    final positions = <Offset>[];
-    int tries = 0;
-    while (positions.length < count && tries < 2000) {
-      tries++;
-      final x = margin + rand.nextDouble() * (canvasSize.width - 2 * margin);
-      final y = margin + rand.nextDouble() * (canvasSize.height - 2 * margin);
-      final p = Offset(x, y);
-      if (positions.every((q) => (p - q).distance >= minDist)) {
-        positions.add(p);
-      }
+  /// 최초 레이아웃 크기로 한 번만 배치하고, 이후에는 현재 크기에 맞춰 변환.
+  List<Offset> _positionsFor(Size size) {
+    if (_normalized == null) {
+      final layout = generateTrailLayout(
+        count: widget.labels.length,
+        width: size.width,
+        height: size.height,
+      );
+      _radius = layout.radius;
+      _normalized = layout.centers
+          .map((p) => Offset(p.x / size.width, p.y / size.height))
+          .toList();
     }
-    return positions;
+    return _normalized!
+        .map((p) => Offset(p.dx * size.width, p.dy * size.height))
+        .toList();
   }
 
   void _onTap(int index) {
@@ -106,7 +99,7 @@ class _T4TrailCanvasState extends State<T4TrailCanvas> {
             builder: (context, constraints) {
               final size =
                   Size(constraints.maxWidth, constraints.maxHeight);
-              _generatePositions(size);
+              final positions = _positionsFor(size);
 
               return Stack(
                 children: [
@@ -114,12 +107,12 @@ class _T4TrailCanvasState extends State<T4TrailCanvas> {
                   CustomPaint(
                     size: size,
                     painter: _LinePainter(
-                      positions: _positions,
+                      positions: positions,
                       tappedCount: _nextIndex,
                     ),
                   ),
                   // Bubbles
-                  ..._buildBubbles(context),
+                  ..._buildBubbles(context, positions),
                 ],
               );
             },
@@ -129,12 +122,11 @@ class _T4TrailCanvasState extends State<T4TrailCanvas> {
     );
   }
 
-  List<Widget> _buildBubbles(BuildContext context) {
-    const r = 28.0;
-    final primary = Theme.of(context).colorScheme.primary;
+  List<Widget> _buildBubbles(BuildContext context, List<Offset> positions) {
+    final r = _radius;
 
     return List.generate(widget.labels.length, (i) {
-      final pos = _positions[i];
+      final pos = positions[i];
       final tapped = _tapped[i];
 
       final bgColor = tapped ? Colors.green.shade200 : Colors.white;
@@ -167,7 +159,7 @@ class _T4TrailCanvasState extends State<T4TrailCanvas> {
               widget.labels[i],
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: widget.labels[i].length > 2 ? 11 : 15,
+                fontSize: (widget.labels[i].length > 2 ? 0.4 : 0.54) * r,
                 color: textColor,
               ),
             ),
