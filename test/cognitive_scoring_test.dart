@@ -27,6 +27,37 @@ void main() {
     });
   });
 
+  group('T1 recallCorrectCount', () {
+    const targets = ['사과', '기차', '하늘', '의자', '연필'];
+
+    test('정답 5개만 선택 → 5', () {
+      expect(recallCorrectCount(selected: targets.toSet(), targets: targets),
+          equals(5));
+    });
+
+    test('보기 10개 모두 선택 → 0 (오답 5개 감점)', () {
+      final all = {...targets, '배', '버스', '바람', '책상', '색연필'};
+      expect(recallCorrectCount(selected: all, targets: targets), equals(0));
+    });
+
+    test('정답 4개 + 오답 1개 → 3', () {
+      expect(
+          recallCorrectCount(
+              selected: {'사과', '기차', '하늘', '의자', '버스'},
+              targets: targets),
+          equals(3));
+    });
+
+    test('오답만 선택 → 0 (음수 clamp)', () {
+      expect(recallCorrectCount(selected: {'배', '버스'}, targets: targets),
+          equals(0));
+    });
+
+    test('아무것도 선택 안 함 → 0', () {
+      expect(recallCorrectCount(selected: {}, targets: targets), equals(0));
+    });
+  });
+
   // =========================================================================
   // T2. 언어 유창성 (Verbal Fluency)
   // =========================================================================

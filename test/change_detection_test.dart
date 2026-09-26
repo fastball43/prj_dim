@@ -105,8 +105,7 @@ void main() {
     test('기준선 충족 후 2회 연속 유의미한 하락 → true', () {
       // scores: [85, 75, 60, 55]
       // baseline = (85+75)/2 = 80
-      // latest = 55, 80-55=25 >= 15 ✓
-      // 연속 하락: 75→60, 60→55 = 2회 ✓
+      // 최근 2회: 80-60=20, 80-55=25 → 모두 >= 15 ✓
       final scores = [85.0, 75.0, 60.0, 55.0];
       final result = shouldAlert(allScores: scores, baseline: computeBaseline(scores));
       expect(result, isTrue);
@@ -115,7 +114,7 @@ void main() {
     test('유의미한 하락이지만 1회만 → false (노이즈 필터)', () {
       // scores: [85, 75, 90, 55]
       // baseline = 80, latest=55, 80-55=25 >=15 ✓
-      // 연속 하락: 90→55 = 1회만 ✗
+      // 직전 세션 90은 하락 아님 → 유의미 하락 1회만 ✗
       final scores = [85.0, 75.0, 90.0, 55.0];
       expect(shouldAlert(allScores: scores, baseline: computeBaseline(scores)),
           isFalse);
@@ -136,6 +135,46 @@ void main() {
     test('세션 부족(2개 이하) → false', () {
       expect(
           shouldAlert(allScores: [80.0, 75.0], baseline: baseline), isFalse);
+    });
+
+    test('기준선 이후 1회만 측정 → false (연속 확인 불가)', () {
+      // baseline=80, latest=50 (30점 하락)이지만 기준선 이후 1회뿐
+      final scores = [80.0, 80.0, 50.0];
+      expect(shouldAlert(allScores: scores, baseline: computeBaseline(scores)),
+          isFalse);
+    });
+
+    test('크게 하락한 뒤 그대로 유지 → true (추가 하락 없어도 경고)', () {
+      // baseline=80, 50 → 50: 직전 대비 하락은 없지만 2회 모두 30점 하락
+      final scores = [80.0, 80.0, 50.0, 50.0];
+      expect(shouldAlert(allScores: scores, baseline: computeBaseline(scores)),
+          isTrue);
+    });
+
+    test('크게 하락한 뒤 약간 회복했지만 여전히 임계값 아래 → true', () {
+      // baseline=80, 50 → 60: 모두 15점 이상 하락 상태
+      final scores = [80.0, 80.0, 50.0, 60.0];
+      expect(shouldAlert(allScores: scores, baseline: computeBaseline(scores)),
+          isTrue);
+    });
+
+    test('하락 후 임계값 위로 회복 → false', () {
+      // baseline=80, 50 → 70: 최신은 10점 하락 < 15
+      final scores = [80.0, 80.0, 50.0, 70.0];
+      expect(shouldAlert(allScores: scores, baseline: computeBaseline(scores)),
+          isFalse);
+    });
+
+    test('정확히 임계값(15점) 하락 2회 → true', () {
+      final scores = [80.0, 80.0, 65.0, 65.0];
+      expect(shouldAlert(allScores: scores, baseline: computeBaseline(scores)),
+          isTrue);
+    });
+
+    test('과거 하락 후 최근 2회 정상 → false', () {
+      final scores = [80.0, 80.0, 50.0, 50.0, 78.0, 79.0];
+      expect(shouldAlert(allScores: scores, baseline: computeBaseline(scores)),
+          isFalse);
     });
   });
 

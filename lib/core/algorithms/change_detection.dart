@@ -2,7 +2,7 @@
 ///
 /// - 처음 2회 평균을 baseline으로 설정
 /// - 종합 점수가 baseline 대비 -15점 이상 하락 시 경고
-/// - 2회 연속 하락 확인 후 알림 (단 1회 하락은 경고 안 함)
+/// - 기준선 이후 최근 2회 연속으로 하락 상태가 확인되면 알림 (단 1회 하락은 경고 안 함)
 /// - 3개월 이상 공백 후 새 baseline 재계산 권유
 library change_detection;
 
@@ -11,6 +11,9 @@ const int kBaselineSessionCount = 2;
 
 /// 기준선 대비 경고 임계값 (하락 점수).
 const double kAlertThreshold = 15.0;
+
+/// 경고에 필요한 연속 유의미 하락 세션 수 (노이즈 필터).
+const int kConsecutiveDeclinesForAlert = 2;
 
 /// baseline 재계산 권유 기준 (일수).
 const int kGapDaysForReset = 90;
@@ -66,9 +69,12 @@ int consecutiveDeclineCount(List<double> recentScores) {
 
 /// 경고 신호 발생 여부 판단.
 ///
-/// 조건:
-/// 1. 현재 점수가 baseline 대비 [kAlertThreshold] 이상 하락
-/// 2. 최근 2회 연속 하락 (노이즈 필터)
+/// 조건: 기준선 이후 최근 [kConsecutiveDeclinesForAlert]회 세션이 **모두**
+/// baseline 대비 [kAlertThreshold] 이상 낮을 것.
+///
+/// 한 번의 컨디션 난조(1회 하락)는 무시하되, 하락한 상태가 유지되면
+/// (예: 80, 80 → 50, 50) 점수가 더 떨어지지 않아도 경고한다.
+/// 직전 대비 소폭 등락(예: 50 → 49)은 판정에 영향을 주지 않는다.
 ///
 /// [allScores]: 시간순 정렬된 전체 세션 점수 (baseline 계산 포함)
 /// [baseline]: 미리 계산된 baseline (없으면 null → 경고 없음)
@@ -77,17 +83,14 @@ bool shouldAlert({
   required List<double> allScores,
   required double? baseline,
 }) {
-  if (baseline == null || allScores.length < kBaselineSessionCount + 1) {
+  if (baseline == null ||
+      allScores.length < kBaselineSessionCount + kConsecutiveDeclinesForAlert) {
     return false;
   }
 
-  final latestScore = allScores.last;
-
-  // 조건 1: 기준선 대비 유의미한 하락
-  if (!isSignificantDecline(latestScore, baseline)) return false;
-
-  // 조건 2: 2회 연속 하락
-  return consecutiveDeclineCount(allScores) >= 2;
+  final recent =
+      allScores.sublist(allScores.length - kConsecutiveDeclinesForAlert);
+  return recent.every((score) => isSignificantDecline(score, baseline));
 }
 
 // ---------------------------------------------------------------------------
