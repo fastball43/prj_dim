@@ -18,6 +18,23 @@ double scoreT1({required int correctDelayed}) {
   return (correctDelayed / 5) * 100;
 }
 
+/// T1 재인(recognition) 회상 정답 수 계산.
+///
+/// 보기(목표 단어 + 오답 단어) 중에서 고르는 방식이므로, 보기를 모두 고르면
+/// 만점이 되지 않도록 오답 선택 1개당 1점을 감점한다 (hits − false alarms).
+///
+/// [selected]: 사용자가 선택한 단어 집합
+/// [targets]: 제시했던 목표 단어 목록
+/// Returns: 0 ~ targets.length
+int recallCorrectCount({
+  required Set<String> selected,
+  required List<String> targets,
+}) {
+  final hits = selected.where(targets.contains).length;
+  final falseAlarms = selected.length - hits;
+  return (hits - falseAlarms).clamp(0, targets.length);
+}
+
 // ---------------------------------------------------------------------------
 // T2. 언어 유창성 (Verbal Fluency)
 // ---------------------------------------------------------------------------

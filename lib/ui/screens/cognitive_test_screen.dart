@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/algorithms/animal_lexicon.dart';
 import '../../core/algorithms/cognitive_scoring.dart';
 import '../../services/cognitive_service.dart';
 import '../widgets/t4_trail_canvas.dart';
@@ -129,8 +130,8 @@ class _CognitiveTestScreenState extends State<CognitiveTestScreen> {
   }
 
   void _submitT1Immediate() {
-    _t1Immediate =
-        _t1ImmediateSelected.where(_wordList.contains).length;
+    _t1Immediate = recallCorrectCount(
+        selected: _t1ImmediateSelected, targets: _wordList);
     setState(() => _phase = _Phase.t2Verbal);
     _startT2();
   }
@@ -151,12 +152,7 @@ class _CognitiveTestScreenState extends State<CognitiveTestScreen> {
 
   void _submitT2() {
     _t2Timer?.cancel();
-    final words = _t2Controller.text
-        .split(RegExp(r'[,\s\n]+'))
-        .map((w) => w.trim().toLowerCase())
-        .where((w) => w.isNotEmpty)
-        .toSet();
-    _t2WordCount = words.length;
+    _t2WordCount = countValidAnimalNames(_t2Controller.text);
     _startT3();
   }
 
@@ -261,8 +257,8 @@ class _CognitiveTestScreenState extends State<CognitiveTestScreen> {
   }
 
   void _submitT1Delayed() {
-    _t1Delayed =
-        _t1DelayedSelected.where(_wordList.contains).length;
+    _t1Delayed = recallCorrectCount(
+        selected: _t1DelayedSelected, targets: _wordList);
     _saveResults();
   }
 
@@ -473,7 +469,7 @@ class _CognitiveTestScreenState extends State<CognitiveTestScreen> {
                 fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
-          const Text('기억나는 것만 선택하세요',
+          const Text('기억나는 것만 선택하세요 (보지 않은 단어를 고르면 감점돼요)',
               style: TextStyle(color: Colors.grey, fontSize: 14)),
           const SizedBox(height: 24),
           Wrap(
@@ -541,7 +537,7 @@ class _CognitiveTestScreenState extends State<CognitiveTestScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('쉼표 또는 줄바꿈으로 구분해 입력해 주세요',
+          const Text('쉼표 또는 줄바꿈으로 구분해 입력해 주세요 (같은 동물은 한 번만 세요)',
               style: TextStyle(color: Colors.grey, fontSize: 13)),
           const SizedBox(height: 16),
           Expanded(
