@@ -31,8 +31,11 @@ jobs:
         run: flutter test
 
       # GitHub Pages는 https://<user>.github.io/<repo>/ 경로로 서비스되므로 base-href 지정
+      # --no-web-resources-cdn: CanvasKit 렌더러를 외부 CDN 대신 앱과 함께 배포
       - name: Build web
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+        run: >-
+          flutter build web --release --no-web-resources-cdn
+          --base-href "/${{ github.event.repository.name }}/"
 
       - uses: actions/upload-pages-artifact@v3
         with:
