@@ -1,7 +1,7 @@
 # prj_dim — 치매 예방 자가 관리 앱
 
 인지 기능 테스트와 라이프스타일 위험도 점수를 측정하는 치매 예방 자가 관리 앱입니다.
-Flutter/Dart + sqflite 기반이며, 모든 데이터는 기기 내 SQLite에만 저장됩니다.
+Flutter/Dart + sembast 기반이며, 모든 데이터는 기기(웹은 브라우저 IndexedDB) 안에만 저장됩니다.
 
 ---
 
@@ -24,6 +24,29 @@ flutter pub get
 ```bash
 flutter run
 ```
+
+---
+
+## 웹 배포 (GitHub Pages) — iPhone 테스트용
+
+`main`에 push하면 `.github/workflows/deploy-web.yml`이 테스트 → 웹 빌드 → GitHub Pages 배포를 자동으로 수행합니다.
+
+- 주소: https://fastball43.github.io/prj_dim/
+- 수동 실행: GitHub → Actions → "Deploy web to GitHub Pages" → Run workflow
+
+### 최초 1회 설정
+
+GitHub 저장소 → **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 선택합니다.
+
+### iPhone에 설치
+
+1. iPhone Safari에서 위 주소를 엽니다.
+2. 공유 버튼 → **홈 화면에 추가**를 누릅니다.
+3. 이후에는 홈 화면 아이콘으로 실행합니다.
+
+> ⚠️ Safari 탭에서 그냥 사용하면 7일간 방문하지 않을 때 저장된 기록이 삭제될 수 있습니다.
+> 홈 화면에 추가한 앱은 이 규칙이 적용되지 않습니다.
+> 데이터는 기기(브라우저) 안에만 저장되며, 서버로 전송되지 않습니다.
 
 ---
 

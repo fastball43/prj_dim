@@ -1,11 +1,11 @@
 {
-    "name": "prj_dim",
-    "short_name": "prj_dim",
+    "name": "뇌 건강 지킴이",
+    "short_name": "뇌 건강",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "치매 예방 자가 관리 앱 - 인지 테스트와 라이프스타일 점수",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
