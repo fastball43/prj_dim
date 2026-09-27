@@ -193,4 +193,22 @@ class CognitiveDao {
         .map((r) => (r.value['composite_score'] as num).toDouble())
         .toList();
   }
+
+  /// (측정 시각, composite_score) 시계열 조회 (null 제외, 시간순).
+  Future<List<({DateTime testedAt, double score})>>
+      getCompositeScoreSeries() async {
+    final records = await _sessionStore.find(
+      db,
+      finder: Finder(
+        filter: Filter.notNull('composite_score'),
+        sortOrders: [SortOrder('tested_at')],
+      ),
+    );
+    return records
+        .map((r) => (
+              testedAt: DateTime.parse(r.value['tested_at'] as String),
+              score: (r.value['composite_score'] as num).toDouble(),
+            ))
+        .toList();
+  }
 }

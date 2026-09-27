@@ -3,7 +3,7 @@
 /// - 처음 2회 평균을 baseline으로 설정
 /// - 종합 점수가 baseline 대비 -15점 이상 하락 시 경고
 /// - 기준선 이후 최근 2회 연속으로 하락 상태가 확인되면 알림 (단 1회 하락은 경고 안 함)
-/// - 3개월 이상 공백 후 새 baseline 재계산 권유
+/// - 3개월 이상 공백 후 새 baseline 재계산 권유, 공백 뒤 첫 세션부터 새 기준선 기간 시작
 library change_detection;
 
 /// 기준선 계산에 필요한 최소 세션 수.
@@ -97,6 +97,25 @@ bool shouldAlert({
 // 공백 감지 (3개월 이상)
 // ---------------------------------------------------------------------------
 
+/// 현재 기준선 기간이 시작되는 세션 인덱스.
+///
+/// 세션 사이 공백이 [gapDays]일 이상이면 그 다음 세션부터 새 기준선 기간이
+/// 시작된다. 공백이 여러 번이면 가장 마지막 공백 이후가 현재 기간이다.
+///
+/// [sessionDates]: 시간순 정렬된 세션 날짜
+/// Returns: 현재 기준선 기간의 첫 세션 인덱스 (공백이 없으면 0)
+int baselinePeriodStartIndex(
+  List<DateTime> sessionDates, {
+  int gapDays = kGapDaysForReset,
+}) {
+  for (int i = sessionDates.length - 1; i > 0; i--) {
+    if (sessionDates[i].difference(sessionDates[i - 1]).inDays >= gapDays) {
+      return i;
+    }
+  }
+  return 0;
+}
+
 /// 마지막 세션 이후 공백이 [kGapDaysForReset]일 이상인지 확인.
 ///
 /// [lastSessionDate]: 마지막 세션 날짜
@@ -129,8 +148,14 @@ class ChangeDetectionResult {
   /// 경고 신호 발생 여부.
   final bool alert;
 
-  /// baseline 재계산 권유 여부.
+  /// baseline 재계산 권유 여부 (다음 세션부터 새 기준선 기간 시작).
   final bool recommendReset;
+
+  /// 현재 기준선 기간의 첫 세션 인덱스 (전체 세션 기준).
+  final int baselinePeriodStart;
+
+  /// 현재 기준선 기간에 속한 세션 수.
+  final int sessionsInPeriod;
 
   const ChangeDetectionResult({
     this.baseline,
@@ -138,30 +163,44 @@ class ChangeDetectionResult {
     this.delta,
     required this.alert,
     required this.recommendReset,
+    this.baselinePeriodStart = 0,
+    this.sessionsInPeriod = 0,
   });
 
   @override
   String toString() => 'ChangeDetectionResult('
       'baseline=$baseline, latest=$latestScore, '
-      'delta=$delta, alert=$alert, reset=$recommendReset)';
+      'delta=$delta, alert=$alert, reset=$recommendReset, '
+      'periodStart=$baselinePeriodStart, inPeriod=$sessionsInPeriod)';
 }
 
 /// 전체 변화 감지 판정을 수행.
 ///
+/// [sessionDates]가 주어지면 [kGapDaysForReset]일 이상 공백 뒤의 세션부터
+/// 새 기준선 기간으로 보고, 그 기간의 점수만으로 baseline·경고를 판정한다.
+///
 /// [allScores]: 시간순 정렬된 전체 세션 점수
 /// [lastSessionDate]: 마지막 세션 날짜 (공백 계산용)
+/// [sessionDates]: [allScores]와 같은 순서·길이의 세션 날짜 (기준선 재설정용)
 /// [now]: 현재 날짜 (테스트 주입용)
 /// Returns: [ChangeDetectionResult]
 ChangeDetectionResult evaluateChange({
   required List<double> allScores,
   required DateTime lastSessionDate,
+  List<DateTime>? sessionDates,
   DateTime? now,
 }) {
-  final baseline = computeBaseline(allScores);
-  final latest = allScores.isNotEmpty ? allScores.last : null;
+  assert(sessionDates == null || sessionDates.length == allScores.length,
+      'sessionDates must match allScores length');
+  final start =
+      sessionDates != null ? baselinePeriodStartIndex(sessionDates) : 0;
+  final periodScores = allScores.sublist(start);
+
+  final baseline = computeBaseline(periodScores);
+  final latest = periodScores.isNotEmpty ? periodScores.last : null;
   final delta = (baseline != null && latest != null) ? latest - baseline : null;
 
-  final alert = shouldAlert(allScores: allScores, baseline: baseline);
+  final alert = shouldAlert(allScores: periodScores, baseline: baseline);
   final reset = shouldRecommendBaselineReset(
       lastSessionDate: lastSessionDate, now: now);
 
@@ -171,5 +210,7 @@ ChangeDetectionResult evaluateChange({
     delta: delta,
     alert: alert,
     recommendReset: reset,
+    baselinePeriodStart: start,
+    sessionsInPeriod: periodScores.length,
   );
 }

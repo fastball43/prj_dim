@@ -54,21 +54,21 @@ class CognitiveService {
     final dao = CognitiveDao(db);
     await dao.insertSession(session);
 
-    final scores = await dao.getCompositeScoreTimeSeries();
-    final baseline = computeBaseline(scores);
-    if (baseline != null) {
+    final series = await dao.getCompositeScoreSeries();
+    final changeResult = _evaluate(series)!;
+
+    // 현재 기준선 기간의 baseline이 확정되었으면 저장
+    if (changeResult.baseline != null) {
+      final establishedAt = series[changeResult.baselinePeriodStart +
+              kBaselineSessionCount -
+              1]
+          .testedAt;
       await dao.upsertBaseline(CognitiveBaseline(
-        baselineComposite: baseline,
-        calculatedAt: DateTime.now(),
-        sessionCountUsed: scores.length,
+        baselineComposite: changeResult.baseline,
+        calculatedAt: establishedAt,
+        sessionCountUsed: kBaselineSessionCount,
       ));
     }
-
-    final latest = await dao.getLatestSession();
-    final changeResult = evaluateChange(
-      allScores: scores,
-      lastSessionDate: latest?.testedAt ?? DateTime.now(),
-    );
 
     return (composite: composite, change: changeResult);
   }
@@ -80,14 +80,17 @@ class CognitiveService {
 
   Future<ChangeDetectionResult?> getChangeResult() async {
     final db = await AppDatabase.instance;
-    final dao = CognitiveDao(db);
-    final scores = await dao.getCompositeScoreTimeSeries();
-    if (scores.isEmpty) return null;
-    final latest = await dao.getLatestSession();
-    if (latest == null) return null;
+    return _evaluate(await CognitiveDao(db).getCompositeScoreSeries());
+  }
+
+  /// 전체 세션으로 변화 감지. 90일 이상 공백 뒤에는 새 기준선 기간으로 판정.
+  ChangeDetectionResult? _evaluate(
+      List<({DateTime testedAt, double score})> series) {
+    if (series.isEmpty) return null;
     return evaluateChange(
-      allScores: scores,
-      lastSessionDate: latest.testedAt,
+      allScores: series.map((s) => s.score).toList(),
+      sessionDates: series.map((s) => s.testedAt).toList(),
+      lastSessionDate: series.last.testedAt,
     );
   }
 }
